@@ -37,6 +37,7 @@ func main() {
 	http.ListenAndServe(":8080", nil) // Simplified without log.Fatal
 }
 
+//Really should try to go one by one
 func setupServices() {
 	// Setting up Redis
 	rdb = redis.NewClient(&redis.Options{
@@ -60,21 +61,21 @@ func setupServices() {
 	mongoDB = client.Database("mydb").Collection("urls")
 }
 
+//ToDo: try with gin
 func postHandler(w http.ResponseWriter, r *http.Request) {
 	var du DomainURL
 	json.NewDecoder(r.Body).Decode(&du)
 
-	// Write operations simplified without error checks
 	rdb.Set(ctx, du.Domain, du.URL, 0)
 	kafkaW.WriteMessages(ctx, kafka.Message{Key: []byte(du.Domain), Value: []byte(du.URL)})
 	db.Exec("INSERT INTO urls (domain, url) VALUES (?, ?) ON DUPLICATE KEY UPDATE url = VALUES(url)", du.Domain, du.URL)
 	mongoDB.ReplaceOne(ctx, bson.M{"domain": du.Domain}, bson.M{"domain": du.Domain, "url": du.URL}, options.Replace().SetUpsert(true))
 
-	w.WriteHeader(http.StatusOK) // Always return OK for simplicity
+	w.WriteHeader(http.StatusOK)
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
 	domain := r.URL.Query().Get("domain")
 	url, _ := rdb.Get(ctx, domain).Result()
-	w.Write([]byte(url)) // Directly return the URL or an empty string if not found
+	w.Write([]byte(url))
 }
